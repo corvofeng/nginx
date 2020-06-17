@@ -210,8 +210,11 @@ ngx_master_process_cycle(ngx_cycle_t *cycle)
 
         if (ngx_reconfigure) {
             ngx_reconfigure = 0;
+            fprintf(stderr, "[ngx_master_process_cycle] reconfigure\n");
 
+            ngx_log_debug0(NGX_LOG_DEBUG, cycle->log, 0, "Modify configure");
             if (ngx_new_binary) {
+                fprintf(stderr, "[ngx_master_process_cycle] newbinary create\n");
                 ngx_start_worker_processes(cycle, ccf->worker_processes,
                                            NGX_PROCESS_RESPAWN);
                 ngx_start_cache_manager_processes(cycle, 0);
@@ -231,6 +234,7 @@ ngx_master_process_cycle(ngx_cycle_t *cycle)
             ngx_cycle = cycle;
             ccf = (ngx_core_conf_t *) ngx_get_conf(cycle->conf_ctx,
                                                    ngx_core_module);
+            fprintf(stderr, "[ngx_master_process_cycle] start new worker process \n");
             ngx_start_worker_processes(cycle, ccf->worker_processes,
                                        NGX_PROCESS_JUST_RESPAWN);
             ngx_start_cache_manager_processes(cycle, 1);
@@ -239,6 +243,7 @@ ngx_master_process_cycle(ngx_cycle_t *cycle)
             ngx_msleep(100);
 
             live = 1;
+            fprintf(stderr, "[ngx_master_process_cycle] shutdown old worker process\n");
             ngx_signal_worker_processes(cycle,
                                         ngx_signal_value(NGX_SHUTDOWN_SIGNAL));
         }
@@ -300,6 +305,7 @@ ngx_single_process_cycle(ngx_cycle_t *cycle)
         ngx_process_events_and_timers(cycle);
 
         if (ngx_terminate || ngx_quit) {
+            fprintf(stderr, "Worker terminate\n");
 
             for (i = 0; cycle->modules[i]; i++) {
                 if (cycle->modules[i]->exit_process) {
@@ -311,6 +317,7 @@ ngx_single_process_cycle(ngx_cycle_t *cycle)
         }
 
         if (ngx_reconfigure) {
+            fprintf(stderr, "Single process\n");
             ngx_reconfigure = 0;
             ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0, "reconfiguring");
 
@@ -481,9 +488,8 @@ ngx_signal_worker_processes(ngx_cycle_t *cycle, int signo)
 
 
     for (i = 0; i < ngx_last_process; i++) {
-
-        ngx_log_debug7(NGX_LOG_DEBUG_EVENT, cycle->log, 0,
-                       "child: %i %P e:%d t:%d d:%d r:%d j:%d",
+        fprintf(stderr,
+                       "[ngx_signal_worker_processes] child: %ld %d e:%d t:%d d:%d r:%d j:%d\n",
                        i,
                        ngx_processes[i].pid,
                        ngx_processes[i].exiting,
@@ -508,6 +514,7 @@ ngx_signal_worker_processes(ngx_cycle_t *cycle, int signo)
         }
 
         if (ch.command) {
+            fprintf(stderr, "[ngx_signal_worker_processes] write channel (%d, %d, %ld)\n", ngx_processes[i].pid, signo, ch.command);
             if (ngx_write_channel(ngx_processes[i].channel[0],
                                   &ch, sizeof(ngx_channel_t), cycle->log)
                 == NGX_OK)
@@ -746,6 +753,7 @@ ngx_worker_process_cycle(ngx_cycle_t *cycle, void *data)
 
         if (ngx_quit) {
             ngx_quit = 0;
+            fprintf(stderr, "[ngx_worker_process_cycle] gracefully shutting down\n");
             ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
                           "gracefully shutting down");
             ngx_setproctitle("worker process is shutting down");
@@ -917,6 +925,7 @@ ngx_worker_process_init(ngx_cycle_t *cycle, ngx_int_t worker)
     }
 
     for (i = 0; cycle->modules[i]; i++) {
+//        fprintf(stderr, "Init module %s\n", cycle->modules[i]->name);
         if (cycle->modules[i]->init_process) {
             if (cycle->modules[i]->init_process(cycle) == NGX_ERROR) {
                 /* fatal */
@@ -1044,6 +1053,7 @@ ngx_channel_handler(ngx_event_t *ev)
     for ( ;; ) {
 
         n = ngx_read_channel(c->fd, &ch, sizeof(ngx_channel_t), ev->log);
+        fprintf(stderr, "[ngx_channel_handler] In channel handler: %ld\n", ch.command);
 
         ngx_log_debug1(NGX_LOG_DEBUG_CORE, ev->log, 0, "channel: %i", n);
 
